@@ -5,7 +5,7 @@
 //  Created by Kael Yang on 2020/11/19.
 //
 
-extension UIBezierPath {
+public extension UIBezierPath {
     enum ContinuousCorner {
         case topLeft, topRight, bottomLeft, bottomRight
 
@@ -19,9 +19,27 @@ extension UIBezierPath {
         }
     }
 
-    func addiOSContinuousCurve(shouldLineToFirstPath lineToFirstPath: Bool, cornerPoint: CGPoint, cornerType: ContinuousCorner, cornerRadius: CGFloat, clockwise: Bool) {
-        let coefficients: [CGFloat] = [1.528665, 1.088492957618529, 0.868406944063002, 0.631493792830993, 0.372823826625747, 0.16905955604437, 0.074911387847016]
-        let calculatingHelpers: [CGFloat] = coefficients.map { $0 * cornerRadius } + [0, 0, 0]
+    private static let coefficients: [CGFloat] = [1.528665, 1.088492957618529, 0.868406944063002, 0.631493792830993, 0.372823826625747, 0.16905955604437, 0.074911387847016]
+
+    func iOSContinuousCurveEnd(cornerPoint: CGPoint, cornerType: ContinuousCorner, cornerRadius: CGFloat, clockwise: Bool) -> CGPoint {
+        let cornerCoefficient = Self.coefficients[0]
+
+        let signConfig = cornerType.signConfig
+        let realClockwise = (signConfig.reversedClockwise != clockwise)
+
+        let xValue, yValue: CGFloat
+        let corner = cornerRadius * cornerCoefficient
+        if realClockwise {
+            (xValue, yValue) = (corner, 0)
+        } else {
+            (xValue, yValue) = (0, corner)
+        }
+
+        return CGPoint(x: cornerPoint.x + (signConfig.xSign ? xValue : -xValue), y: cornerPoint.y + (signConfig.ySign ? yValue : -yValue))
+    }
+
+    func addiOSContinuousCurve(shouldLineToPathStart lineToPathStart: Bool, cornerPoint: CGPoint, cornerType: ContinuousCorner, cornerRadius: CGFloat, clockwise: Bool) {
+        let calculatingHelpers: [CGFloat] = Self.coefficients.map { $0 * cornerRadius } + [0, 0, 0]
 
         let signConfig = cornerType.signConfig
 
@@ -37,15 +55,15 @@ extension UIBezierPath {
             } else {
                 return (0 ..< pointCount).map { index -> CGPoint in
                     let reversedIndex = pointCount - index - 1
-                    return CGPoint(x: cornerPoint.x + (signConfig.xSign ? coefficients[index] : -coefficients[index]), y: cornerPoint.y + (signConfig.ySign ? coefficients[reversedIndex] : -coefficients[reversedIndex]))
+                    return CGPoint(x: cornerPoint.x + (signConfig.xSign ? calculatingHelpers[index] : -calculatingHelpers[index]), y: cornerPoint.y + (signConfig.ySign ? calculatingHelpers[reversedIndex] : -calculatingHelpers[reversedIndex]))
                 }
             }
         }()
 
-        if lineToFirstPath {
-            self.addLine(to: points[0])
+        if lineToPathStart {
+            addLine(to: points[0])
         } else {
-            self.move(to: points[0])
+            move(to: points[0])
         }
 
         let curveCount = 3
@@ -59,5 +77,5 @@ extension UIBezierPath {
 }
 
 let bezierPath = UIBezierPath()
-bezierPath.addiOSContinuousCurve(shouldLineToFirstPath: false, cornerPoint: CGPoint.zero, cornerType: .topLeft, cornerRadius: 10, clockwise: true)
+bezierPath.addiOSContinuousCurve(shouldLineToPathStart: false, cornerPoint: CGPoint.zero, cornerType: .topLeft, cornerRadius: 10, clockwise: true)
 print(bezierPath)
